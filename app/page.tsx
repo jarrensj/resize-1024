@@ -167,6 +167,112 @@ export default function Home() {
     }
   };
 
+  const exportFavicon = () => {
+    if (!image || !imageRef.current) return;
+
+    const img = imageRef.current;
+    const scaleX = img.naturalWidth / img.width;
+    const scaleY = img.naturalHeight / img.height;
+
+    const sourceX = cropPosition.x * scaleX;
+    const sourceY = cropPosition.y * scaleY;
+    const sourceSize = cropSize * scaleX;
+
+    const size = 32;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+
+    if (ctx) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size, size);
+
+      const tempImg = new Image();
+      tempImg.onload = () => {
+        ctx.drawImage(tempImg, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+
+        // Get image data for ICO format
+        const imageData = ctx.getImageData(0, 0, size, size);
+        const pixels = imageData.data;
+
+        // Create ICO file structure
+        // ICO Header (6 bytes)
+        const header = new Uint8Array([
+          0, 0,       // Reserved
+          1, 0,       // ICO type
+          1, 0,       // Number of images
+        ]);
+
+        // Image entry (16 bytes)
+        const bmpInfoSize = 40;
+        const pixelDataSize = size * size * 4; // BGRA
+        const andMaskSize = Math.ceil(size / 8) * size;
+        const bmpSize = bmpInfoSize + pixelDataSize + andMaskSize;
+        const dataOffset = 6 + 16; // header + entry
+
+        const entry = new Uint8Array([
+          size,       // Width
+          size,       // Height
+          0,          // Color palette
+          0,          // Reserved
+          1, 0,       // Color planes
+          32, 0,      // Bits per pixel
+          bmpSize & 0xff, (bmpSize >> 8) & 0xff, (bmpSize >> 16) & 0xff, (bmpSize >> 24) & 0xff, // Size
+          dataOffset & 0xff, (dataOffset >> 8) & 0xff, (dataOffset >> 16) & 0xff, (dataOffset >> 24) & 0xff, // Offset
+        ]);
+
+        // BMP Info Header (40 bytes)
+        const bmpHeader = new Uint8Array(40);
+        const view = new DataView(bmpHeader.buffer);
+        view.setUint32(0, 40, true);      // Header size
+        view.setInt32(4, size, true);      // Width
+        view.setInt32(8, size * 2, true);  // Height (doubled for AND mask)
+        view.setUint16(12, 1, true);       // Planes
+        view.setUint16(14, 32, true);      // Bits per pixel
+        view.setUint32(16, 0, true);       // Compression
+        view.setUint32(20, pixelDataSize + andMaskSize, true); // Image size
+        view.setUint32(24, 0, true);       // X pixels per meter
+        view.setUint32(28, 0, true);       // Y pixels per meter
+        view.setUint32(32, 0, true);       // Colors used
+        view.setUint32(36, 0, true);       // Important colors
+
+        // Pixel data (BGRA, bottom-to-top)
+        const pixelData = new Uint8Array(pixelDataSize);
+        for (let y = 0; y < size; y++) {
+          for (let x = 0; x < size; x++) {
+            const srcIdx = ((size - 1 - y) * size + x) * 4;
+            const dstIdx = (y * size + x) * 4;
+            pixelData[dstIdx + 0] = pixels[srcIdx + 2]; // B
+            pixelData[dstIdx + 1] = pixels[srcIdx + 1]; // G
+            pixelData[dstIdx + 2] = pixels[srcIdx + 0]; // R
+            pixelData[dstIdx + 3] = pixels[srcIdx + 3]; // A
+          }
+        }
+
+        // AND mask (all zeros = fully opaque)
+        const andMask = new Uint8Array(andMaskSize);
+
+        // Combine all parts
+        const ico = new Uint8Array(header.length + entry.length + bmpHeader.length + pixelData.length + andMask.length);
+        let offset = 0;
+        ico.set(header, offset); offset += header.length;
+        ico.set(entry, offset); offset += entry.length;
+        ico.set(bmpHeader, offset); offset += bmpHeader.length;
+        ico.set(pixelData, offset); offset += pixelData.length;
+        ico.set(andMask, offset);
+
+        const blob = new Blob([ico], { type: "image/x-icon" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "favicon.ico";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      };
+      tempImg.src = image;
+    }
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-8 p-8">
       <h1 className="text-2xl font-bold">1024 Square PNG</h1>
@@ -245,12 +351,20 @@ export default function Home() {
             </button>
           </div>
 
-          <button
-            onClick={exportImage}
-            className="py-2 px-4 rounded-full bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-700"
-          >
-            Export PNG (1024x1024)
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={exportImage}
+              className="py-2 px-4 rounded-full bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-700"
+            >
+              Export PNG (1024x1024)
+            </button>
+            <button
+              onClick={exportFavicon}
+              className="py-2 px-4 rounded-full bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-700"
+            >
+              Export favicon.ico
+            </button>
+          </div>
         </div>
       )}
     </main>
