@@ -38,10 +38,19 @@ export default function Home() {
         const y = (1024 - newHeight) / 2;
 
         ctx.drawImage(img, x, y, newWidth, newHeight);
-        setResizedImage(canvas.toDataURL());
+        setResizedImage(canvas.toDataURL("image/png"));
       }
     };
     img.src = dataUrl;
+  };
+
+  const downloadPng = () => {
+    if (resizedImage) {
+      const link = document.createElement("a");
+      link.href = resizedImage;
+      link.download = "resized-1024x1024.png";
+      link.click();
+    }
   };
 
   return (
@@ -64,8 +73,14 @@ export default function Home() {
 
       {resizedImage && (
         <div className="flex flex-col items-center gap-4">
-          <p className="text-sm text-zinc-500">Resized (1024x1024):</p>
+          <p className="text-sm text-zinc-500">Resized (1024x1024 PNG):</p>
           <img src={resizedImage} alt="Resized" className="max-w-md max-h-96 object-contain border" />
+          <button
+            onClick={downloadPng}
+            className="py-2 px-4 rounded-full bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-700"
+          >
+            Download PNG
+          </button>
         </div>
       )}
     </main>
