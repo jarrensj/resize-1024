@@ -45,6 +45,31 @@ export default function Home() {
     setIsDragging(false);
   };
 
+  const zoomIn = () => {
+    if (!imageRef.current) return;
+    const newSize = Math.max(50, cropSize - 20);
+    setCropSize(newSize);
+    // Adjust position to keep crop within bounds
+    const imgRect = imageRef.current.getBoundingClientRect();
+    setCropPosition((prev) => ({
+      x: Math.min(prev.x, imgRect.width - newSize),
+      y: Math.min(prev.y, imgRect.height - newSize),
+    }));
+  };
+
+  const zoomOut = () => {
+    if (!imageRef.current) return;
+    const imgRect = imageRef.current.getBoundingClientRect();
+    const maxSize = Math.min(imgRect.width, imgRect.height);
+    const newSize = Math.min(maxSize, cropSize + 20);
+    setCropSize(newSize);
+    // Adjust position to keep crop within bounds
+    setCropPosition((prev) => ({
+      x: Math.min(prev.x, imgRect.width - newSize),
+      y: Math.min(prev.y, imgRect.height - newSize),
+    }));
+  };
+
   useEffect(() => {
     if (imageRef.current && image) {
       const img = imageRef.current;
@@ -125,6 +150,21 @@ export default function Home() {
               }}
               onMouseDown={handleMouseDown}
             />
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={zoomIn}
+              className="py-2 px-4 rounded-full bg-zinc-200 text-zinc-700 text-sm font-semibold hover:bg-zinc-300"
+            >
+              Zoom In +
+            </button>
+            <button
+              onClick={zoomOut}
+              className="py-2 px-4 rounded-full bg-zinc-200 text-zinc-700 text-sm font-semibold hover:bg-zinc-300"
+            >
+              Zoom Out -
+            </button>
           </div>
 
           <button
