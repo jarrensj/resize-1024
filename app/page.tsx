@@ -1,55 +1,88 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export default function Home() {
   const [image, setImage] = useState<string | null>(null);
-  const [resizedImage, setResizedImage] = useState<string | null>(null);
+  const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 });
+  const [cropSize, setCropSize] = useState(200);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        setImage(dataUrl);
-        resizeImage(dataUrl);
+        setImage(event.target?.result as string);
+        setCropPosition({ x: 0, y: 0 });
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const resizeImage = (dataUrl: string) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 1024;
-      canvas.height = 1024;
-      const ctx = canvas.getContext("2d");
-
-      if (ctx) {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, 1024, 1024);
-
-        const scale = Math.min(1024 / img.width, 1024 / img.height);
-        const newWidth = img.width * scale;
-        const newHeight = img.height * scale;
-        const x = (1024 - newWidth) / 2;
-        const y = (1024 - newHeight) / 2;
-
-        ctx.drawImage(img, x, y, newWidth, newHeight);
-        setResizedImage(canvas.toDataURL("image/png"));
-      }
-    };
-    img.src = dataUrl;
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - cropPosition.x, y: e.clientY - cropPosition.y });
   };
 
-  const downloadPng = () => {
-    if (resizedImage) {
-      const link = document.createElement("a");
-      link.href = resizedImage;
-      link.download = "resized-1024x1024.png";
-      link.click();
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !imageRef.current) return;
+
+    const imgRect = imageRef.current.getBoundingClientRect();
+    let newX = e.clientX - dragStart.x;
+    let newY = e.clientY - dragStart.y;
+
+    newX = Math.max(0, Math.min(newX, imgRect.width - cropSize));
+    newY = Math.max(0, Math.min(newY, imgRect.height - cropSize));
+
+    setCropPosition({ x: newX, y: newY });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (imageRef.current && image) {
+      const img = imageRef.current;
+      const minDim = Math.min(img.naturalWidth, img.naturalHeight);
+      const displayScale = img.width / img.naturalWidth;
+      setCropSize(Math.min(200, minDim * displayScale));
+    }
+  }, [image]);
+
+  const exportImage = () => {
+    if (!image || !imageRef.current) return;
+
+    const img = imageRef.current;
+    const scaleX = img.naturalWidth / img.width;
+    const scaleY = img.naturalHeight / img.height;
+
+    const sourceX = cropPosition.x * scaleX;
+    const sourceY = cropPosition.y * scaleY;
+    const sourceSize = cropSize * scaleX;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 1024;
+    canvas.height = 1024;
+    const ctx = canvas.getContext("2d");
+
+    if (ctx) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      const tempImg = new Image();
+      tempImg.onload = () => {
+        ctx.drawImage(tempImg, sourceX, sourceY, sourceSize, sourceSize, 0, 0, 1024, 1024);
+        const link = document.createElement("a");
+        link.href = canvas.toDataURL("image/png");
+        link.download = "cropped-1024x1024.png";
+        link.click();
+      };
+      tempImg.src = image;
     }
   };
 
@@ -66,20 +99,39 @@ export default function Home() {
 
       {image && (
         <div className="flex flex-col items-center gap-4">
-          <p className="text-sm text-zinc-500">Original Image:</p>
-          <img src={image} alt="Uploaded" className="max-w-md max-h-96 object-contain" />
-        </div>
-      )}
+          <p className="text-sm text-zinc-500">Drag the square to select crop area:</p>
+          <div
+            ref={containerRef}
+            className="relative inline-block cursor-crosshair select-none"
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+            <img
+              ref={imageRef}
+              src={image}
+              alt="Uploaded"
+              className="max-w-lg max-h-96 object-contain"
+              draggable={false}
+            />
+            <div
+              className="absolute border-2 border-white shadow-lg cursor-move"
+              style={{
+                left: cropPosition.x,
+                top: cropPosition.y,
+                width: cropSize,
+                height: cropSize,
+                boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5)",
+              }}
+              onMouseDown={handleMouseDown}
+            />
+          </div>
 
-      {resizedImage && (
-        <div className="flex flex-col items-center gap-4">
-          <p className="text-sm text-zinc-500">Resized (1024x1024 PNG):</p>
-          <img src={resizedImage} alt="Resized" className="max-w-md max-h-96 object-contain border" />
           <button
-            onClick={downloadPng}
+            onClick={exportImage}
             className="py-2 px-4 rounded-full bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-700"
           >
-            Download PNG
+            Export PNG (1024x1024)
           </button>
         </div>
       )}
