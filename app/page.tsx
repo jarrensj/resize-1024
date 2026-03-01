@@ -7,7 +7,9 @@ export default function Home() {
   const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 });
   const [cropSize, setCropSize] = useState(200);
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, size: 0, posX: 0, posY: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
@@ -28,10 +30,63 @@ export default function Home() {
     setDragStart({ x: e.clientX - cropPosition.x, y: e.clientY - cropPosition.y });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !imageRef.current) return;
+  const handleCornerMouseDown = (corner: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsResizing(corner);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      size: cropSize,
+      posX: cropPosition.x,
+      posY: cropPosition.y,
+    });
+  };
 
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!imageRef.current) return;
     const imgRect = imageRef.current.getBoundingClientRect();
+
+    if (isResizing) {
+      const deltaX = e.clientX - resizeStart.x;
+      const deltaY = e.clientY - resizeStart.y;
+      const delta = Math.max(deltaX, deltaY);
+
+      let newSize = resizeStart.size;
+      let newX = resizeStart.posX;
+      let newY = resizeStart.posY;
+
+      if (isResizing === "se") {
+        newSize = Math.max(50, resizeStart.size + delta);
+        newSize = Math.min(newSize, imgRect.width - newX, imgRect.height - newY);
+      } else if (isResizing === "sw") {
+        const change = Math.max(-deltaX, deltaY);
+        newSize = Math.max(50, resizeStart.size + change);
+        newX = resizeStart.posX - (newSize - resizeStart.size);
+        newX = Math.max(0, newX);
+        newSize = Math.min(newSize, resizeStart.posX + resizeStart.size, imgRect.height - newY);
+      } else if (isResizing === "ne") {
+        const change = Math.max(deltaX, -deltaY);
+        newSize = Math.max(50, resizeStart.size + change);
+        newY = resizeStart.posY - (newSize - resizeStart.size);
+        newY = Math.max(0, newY);
+        newSize = Math.min(newSize, imgRect.width - newX, resizeStart.posY + resizeStart.size);
+      } else if (isResizing === "nw") {
+        const change = Math.max(-deltaX, -deltaY);
+        newSize = Math.max(50, resizeStart.size + change);
+        newX = resizeStart.posX - (newSize - resizeStart.size);
+        newY = resizeStart.posY - (newSize - resizeStart.size);
+        newX = Math.max(0, newX);
+        newY = Math.max(0, newY);
+        newSize = Math.min(newSize, resizeStart.posX + resizeStart.size, resizeStart.posY + resizeStart.size);
+      }
+
+      setCropSize(newSize);
+      setCropPosition({ x: newX, y: newY });
+      return;
+    }
+
+    if (!isDragging) return;
+
     let newX = e.clientX - dragStart.x;
     let newY = e.clientY - dragStart.y;
 
@@ -43,6 +98,7 @@ export default function Home() {
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    setIsResizing(null);
   };
 
   const zoomIn = () => {
@@ -140,7 +196,7 @@ export default function Home() {
               draggable={false}
             />
             <div
-              className="absolute border-2 border-white shadow-lg cursor-move"
+              className="absolute border-2 border-white cursor-move"
               style={{
                 left: cropPosition.x,
                 top: cropPosition.y,
@@ -149,7 +205,29 @@ export default function Home() {
                 boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5)",
               }}
               onMouseDown={handleMouseDown}
-            />
+            >
+              {/* Corner handles */}
+              <div
+                className="absolute w-3 h-3 bg-white border border-zinc-400 cursor-nw-resize"
+                style={{ top: -6, left: -6 }}
+                onMouseDown={(e) => handleCornerMouseDown("nw", e)}
+              />
+              <div
+                className="absolute w-3 h-3 bg-white border border-zinc-400 cursor-ne-resize"
+                style={{ top: -6, right: -6 }}
+                onMouseDown={(e) => handleCornerMouseDown("ne", e)}
+              />
+              <div
+                className="absolute w-3 h-3 bg-white border border-zinc-400 cursor-sw-resize"
+                style={{ bottom: -6, left: -6 }}
+                onMouseDown={(e) => handleCornerMouseDown("sw", e)}
+              />
+              <div
+                className="absolute w-3 h-3 bg-white border border-zinc-400 cursor-se-resize"
+                style={{ bottom: -6, right: -6 }}
+                onMouseDown={(e) => handleCornerMouseDown("se", e)}
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
