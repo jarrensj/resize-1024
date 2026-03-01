@@ -183,7 +183,7 @@ export default function Home() {
           <p className="text-sm text-zinc-500">Drag the square to select crop area:</p>
           <div
             ref={containerRef}
-            className="relative inline-block cursor-crosshair select-none"
+            className="relative inline-block cursor-crosshair select-none overflow-hidden"
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
